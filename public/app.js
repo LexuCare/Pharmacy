@@ -55,8 +55,9 @@ function renderMarkdown(text) {
     s
       // Markdown links [text](url) -> keep just the text (model often emits empty-url links for products).
       .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<em>$1</em>");
+      // Bold first, then italics. Avoid regex lookbehind for older-Safari/iOS compatibility.
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>");
 
   for (const raw of lines) {
     const line = raw.trim();
@@ -254,33 +255,47 @@ if (voiceSelect) {
   });
 }
 
+// Build emoji-stripping regexes safely (Unicode-property regex can be unsupported
+// on very old engines; constructing via new RegExp keeps the file parseable).
+let EMOJI_RE = null;
+let EMOJI_RANGE_RE = null;
+try {
+  EMOJI_RE = new RegExp("\\p{Extended_Pictographic}", "gu");
+  EMOJI_RANGE_RE = new RegExp(
+    "[\\u{1F1E6}-\\u{1F1FF}\\u{2190}-\\u{21FF}\\u{2B00}-\\u{2BFF}\\u{2700}-\\u{27BF}\\uFE0F\\u200D\u2605\u25AA\u25E6]",
+    "gu"
+  );
+} catch (_) {
+  /* older browser — emoji stripping will be skipped */
+}
+
 // Strip markdown, emojis and symbols so speech sounds clean.
 function toSpeakable(text) {
-  return (
-    text
-      // Don't speak the legal disclaimer — it's shown as fine print instead.
-      .replace(/this is general (guidance|information)[^.]*professional medical advice\.?/gi, "")
-      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-      .replace(/\*\*(.+?)\*\*/g, "$1")
-      .replace(/\*(.+?)\*/g, "$1")
-      .replace(/^[\s]*[-•]\s+/gm, "")
-      .replace(/[#>`_]/g, "")
-      // Strip ALL emojis / pictographs + variation selectors and zero-width joiners.
-      .replace(/\p{Extended_Pictographic}/gu, "")
-      .replace(/[\u{1F1E6}-\u{1F1FF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{2700}-\u{27BF}\uFE0F\u200D★▪◦]/gu, "")
-      // Number ranges like "2-3" or "200–400" -> "2 to 3" (so it isn't read as "2 dash 3").
-      .replace(/(\d)\s*[-–—]\s*(\d)/g, "$1 to $2")
-      // Spell out common units for natural speech.
-      .replace(/(\d)\s*mg\b/gi, "$1 milligrams")
-      .replace(/(\d)\s*ml\b/gi, "$1 milliliters")
-      .replace(/(\d)\s*h\b/gi, "$1 hours")
-      .replace(/(\d)\s*x\b/gi, "$1 times")
-      .replace(/\bIU\b/g, "international units")
-      // Any remaining dash used as a separator -> a natural pause.
-      .replace(/\s[–—-]\s/g, ", ")
-      .replace(/\s{2,}/g, " ")
-      .trim()
-  );
+  let out = text
+    // Don't speak the legal disclaimer — it's shown as fine print instead.
+    .replace(/this is general (guidance|information)[^.]*professional medical advice\.?/gi, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/^[\s]*[-•]\s+/gm, "")
+    .replace(/[#>`_]/g, "");
+
+  if (EMOJI_RE) out = out.replace(EMOJI_RE, "");
+  if (EMOJI_RANGE_RE) out = out.replace(EMOJI_RANGE_RE, "");
+
+  return out
+    // Number ranges like "2-3" or "200–400" -> "2 to 3" (so it isn't read as "2 dash 3").
+    .replace(/(\d)\s*[-–—]\s*(\d)/g, "$1 to $2")
+    // Spell out common units for natural speech.
+    .replace(/(\d)\s*mg\b/gi, "$1 milligrams")
+    .replace(/(\d)\s*ml\b/gi, "$1 milliliters")
+    .replace(/(\d)\s*h\b/gi, "$1 hours")
+    .replace(/(\d)\s*x\b/gi, "$1 times")
+    .replace(/\bIU\b/g, "international units")
+    // Any remaining dash used as a separator -> a natural pause.
+    .replace(/\s[–—-]\s/g, ", ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 function speak(text) {
