@@ -10,7 +10,7 @@ const history = [];
 let greeted = false;
 
 const GREETING =
-  "Hi, I'm **Remy** 👋 your AI health & skincare advisor.\n\nTell me what's bothering you — a symptom, a skin concern, anything — and I'll suggest a few things that could help.";
+  "Hi, I'm **Remy** 👋 your AI health & skincare advisor.\n\nJust talk to me — I'm listening. Tell me what's bothering you and I'll suggest what can help.";
 
 /* ---------- Modal open / close ---------- */
 function openChat() {
@@ -21,10 +21,14 @@ function openChat() {
     greeted = true;
   }
   setTimeout(() => input.focus(), 200);
+  // Proactively turn on the always-listening mic (within this user gesture).
+  startHandsFree();
 }
 function closeChat() {
   chat.classList.remove("open");
   chat.setAttribute("aria-hidden", "true");
+  stopHandsFree();
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
 }
 
 document.querySelectorAll("[data-open-chat]").forEach((b) => b.addEventListener("click", openChat));
@@ -106,6 +110,10 @@ form.addEventListener("submit", async (e) => {
   const text = input.value.trim();
   if (!text) return;
 
+  // Stop the mic while we think + speak, so it doesn't capture noise or our own voice.
+  processing = true;
+  pauseListening();
+
   addMessage(text, "user");
   history.push({ role: "user", content: text });
   input.value = "";
@@ -139,6 +147,9 @@ form.addEventListener("submit", async (e) => {
     input.disabled = false;
     sendBtn.disabled = false;
     input.focus();
+    processing = false;
+    // If Remy isn't speaking (e.g. voice off or no reply audio), go back to listening now.
+    maybeResumeListening();
   }
 });
 
@@ -185,6 +196,11 @@ const synth = window.speechSynthesis;
 let voiceEnabled = !!synth;
 let preferredVoice = null;
 const SAVED_VOICE_KEY = "remy_voice";
+
+// Hands-free conversation state.
+let handsFree = false;   // always-on mic mode
+let botSpeaking = false; // Remy is currently talking (TTS)
+let processing = false;  // a request is in flight
 
 function englishVoices() {
   const all = synth.getVoices();
@@ -300,14 +316,28 @@ function toSpeakable(text) {
 
 function speak(text) {
   if (!voiceEnabled || !synth) return;
+  const clean = toSpeakable(text);
+  if (!clean) return;
   synth.cancel(); // stop any in-progress speech
-  const utter = new SpeechSynthesisUtterance(toSpeakable(text));
+  const utter = new SpeechSynthesisUtterance(clean);
   utter.rate = 0.97;
   utter.pitch = 1.05;
   if (preferredVoice) utter.voice = preferredVoice;
-  utter.onstart = () => headerAvatar && headerAvatar.classList.add("is-speaking");
-  utter.onend = () => headerAvatar && headerAvatar.classList.remove("is-speaking");
-  utter.onerror = () => headerAvatar && headerAvatar.classList.remove("is-speaking");
+  utter.onstart = () => {
+    botSpeaking = true;
+    pauseListening(); // don't let the mic hear Remy talking
+    if (headerAvatar) headerAvatar.classList.add("is-speaking");
+  };
+  utter.onend = () => {
+    botSpeaking = false;
+    if (headerAvatar) headerAvatar.classList.remove("is-speaking");
+    maybeResumeListening(); // proactively go back to listening
+  };
+  utter.onerror = () => {
+    botSpeaking = false;
+    if (headerAvatar) headerAvatar.classList.remove("is-speaking");
+    maybeResumeListening();
+  };
   synth.speak(utter);
 }
 
@@ -330,55 +360,122 @@ document.querySelectorAll("[data-close-chat]").forEach((b) =>
   b.addEventListener("click", () => synth && synth.cancel())
 );
 
-/* ---------- Speech-to-Text (microphone) ---------- */
+/* ---------- Speech-to-Text: always-on, hands-free mic ---------- */
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
 let listening = false;
+let restartTimer = null;
+
+function micSupported() {
+  return !!(recognition && micBtn);
+}
+
+function safeStart() {
+  if (!micSupported() || listening || botSpeaking || processing || !handsFree) return;
+  try {
+    recognition.start();
+  } catch (_) {
+    /* start() throws if it's already starting — ignore */
+  }
+}
+
+function pauseListening() {
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+  }
+  if (micSupported() && listening) {
+    try {
+      recognition.stop();
+    } catch (_) {}
+  }
+}
+
+function maybeResumeListening() {
+  if (!micSupported() || !handsFree || botSpeaking || processing) return;
+  if (restartTimer) clearTimeout(restartTimer);
+  restartTimer = setTimeout(safeStart, 250);
+}
+
+function startHandsFree() {
+  if (!micSupported()) return;
+  handsFree = true;
+  micBtn.classList.add("is-listening");
+  micBtn.title = "Always-on mic is ON — click to turn off";
+  input.placeholder = "Listening… just talk";
+  // If a greeting/reply is being spoken, the mic auto-starts when it finishes.
+  if (synth && voiceEnabled && (synth.speaking || synth.pending)) return;
+  safeStart();
+}
+
+function stopHandsFree() {
+  handsFree = false;
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+  }
+  if (micSupported()) {
+    micBtn.classList.remove("is-listening");
+    micBtn.title = "Turn on always-on mic";
+    input.placeholder = "Describe your symptoms…";
+    try {
+      recognition.abort();
+    } catch (_) {}
+  }
+}
+
+function handleUserUtterance(text) {
+  const clean = (text || "").trim();
+  if (!clean || processing || botSpeaking) return;
+  input.value = clean;
+  form.requestSubmit();
+}
 
 if (SpeechRecognition && micBtn) {
   recognition = new SpeechRecognition();
   recognition.lang = "en-US";
   recognition.interimResults = true;
-  recognition.continuous = false;
+  recognition.continuous = true;
 
   recognition.onstart = () => {
     listening = true;
-    micBtn.classList.add("is-listening");
-    micBtn.title = "Listening… click to stop";
-    input.placeholder = "Listening…";
+    if (handsFree) micBtn.classList.add("is-listening");
   };
 
   recognition.onresult = (e) => {
-    let transcript = "";
-    for (let i = 0; i < e.results.length; i++) transcript += e.results[i][0].transcript;
-    input.value = transcript;
-  };
-
-  recognition.onerror = () => stopListening();
-  recognition.onend = () => {
-    stopListening();
-    // Auto-send if we captured something.
-    if (input.value.trim()) form.requestSubmit();
-  };
-
-  function stopListening() {
-    listening = false;
-    micBtn.classList.remove("is-listening");
-    micBtn.title = "Speak your symptoms";
-    input.placeholder = "Describe your symptoms…";
-  }
-
-  micBtn.addEventListener("click", () => {
-    if (listening) {
-      recognition.stop();
-      return;
+    let interim = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const r = e.results[i];
+      if (r.isFinal) {
+        handleUserUtterance(r[0].transcript);
+      } else {
+        interim += r[0].transcript;
+      }
     }
-    if (synth) synth.cancel(); // don't talk over the user
-    input.value = "";
-    try {
-      recognition.start();
-    } catch (_) {
-      /* start() can throw if called twice quickly — ignore */
+    if (interim && !processing) input.value = interim;
+  };
+
+  recognition.onerror = (ev) => {
+    listening = false;
+    // Permission denied / blocked — stop trying so we don't loop.
+    if (ev && (ev.error === "not-allowed" || ev.error === "service-not-allowed")) {
+      stopHandsFree();
+    }
+  };
+
+  recognition.onend = () => {
+    listening = false;
+    // Keep the mic always on while hands-free and not busy.
+    if (handsFree && !botSpeaking && !processing) maybeResumeListening();
+  };
+
+  // The mic button toggles always-on listening.
+  micBtn.addEventListener("click", () => {
+    if (handsFree) {
+      stopHandsFree();
+    } else {
+      if (synth) synth.cancel();
+      startHandsFree();
     }
   });
 } else if (micBtn) {
