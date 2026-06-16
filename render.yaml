@@ -1,0 +1,18 @@
+# Render.com deployment blueprint (free tier).
+# 1. Push this repo to GitHub.
+# 2. On render.com: New + → "Blueprint" → pick your repo.
+# 3. When prompted, paste your ANTHROPIC_API_KEY (it is NOT stored in the repo).
+services:
+  - type: web
+    name: pharma-demo
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: AI_PROVIDER
+        value: anthropic
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-4-6
+      - key: ANTHROPIC_API_KEY
+        sync: false # set this secret in the Render dashboard

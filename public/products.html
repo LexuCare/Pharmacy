@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Products — RemyRx Pharmacy</title>
+  <meta name="description" content="Browse RemyRx's pharmacy catalog — pain relief, cold & flu, allergy, digestive, skincare, sleep and vitamins. Describe your symptoms and Remy recommends the right ones." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- NAV -->
+  <header class="nav">
+    <div class="container nav__inner">
+      <a href="index.html#top" class="brand">
+        <span class="brand__mark">✚</span>
+        <span class="brand__name">Remy<span class="brand__rx">Rx</span></span>
+      </a>
+      <nav class="nav__links">
+        <a href="index.html#how">How it works</a>
+        <a href="index.html#roi">ROI</a>
+        <a href="products.html" class="is-active">Products</a>
+      </nav>
+      <button class="btn btn--ghost" data-open-chat>Ask Remy</button>
+    </div>
+  </header>
+
+  <!-- HEADER -->
+  <section class="products-hero">
+    <div class="container">
+      <span class="pill">Pharmacy catalog</span>
+      <h1>Everything Remy can <span class="grad">prescribe</span>.</h1>
+      <p class="lede">Browse our over-the-counter range. Not sure what you need? Describe your symptoms and Remy will recommend the right products from this exact catalog.</p>
+      <div class="products-hero__actions">
+        <button class="btn btn--primary btn--lg" data-open-chat>Describe my symptoms →</button>
+        <input id="searchBox" type="search" class="products-search" placeholder="Search products or symptoms…" aria-label="Search products" />
+      </div>
+    </div>
+  </section>
+
+  <!-- CATALOG -->
+  <section class="section section--catalog">
+    <div class="container">
+      <div class="filters" id="filters"></div>
+      <div class="product-grid" id="productGrid"></div>
+      <p class="no-results" id="noResults" hidden>No products match your search. Try describing your symptoms to Remy instead.</p>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <a href="index.html#top" class="brand"><span class="brand__mark">✚</span> Remy<span class="brand__rx">Rx</span></a>
+      <p>Demo product. Not a medical device. Always consult a licensed professional.</p>
+    </div>
+  </footer>
+
+  <!-- FLOATING AVATAR LAUNCHER -->
+  <button class="launcher" data-open-chat aria-label="Chat with Remy">
+    <img src="avatar.png" alt="Remy" />
+    <span class="launcher__ping"></span>
+  </button>
+
+  <!-- CHAT MODAL -->
+  <div class="chat" id="chat" aria-hidden="true">
+    <div class="chat__backdrop" data-close-chat></div>
+    <div class="chat__panel" role="dialog" aria-modal="true" aria-label="Chat with Remy">
+      <div class="chat__header">
+        <div class="chat__id">
+          <img src="avatar.png" alt="Remy" />
+          <div>
+            <strong>Remy</strong>
+            <span class="chat__status"><span class="dot"></span> AI Health Advisor</span>
+          </div>
+        </div>
+        <div class="chat__actions">
+          <select class="chat__voice-select" id="voiceSelect" aria-label="Choose Remy's voice" title="Choose Remy's voice"></select>
+          <button class="chat__icon-btn" id="voiceToggle" aria-pressed="true" aria-label="Toggle Remy's voice" title="Remy's voice: on">🔊</button>
+          <button class="chat__close" data-close-chat aria-label="Close chat">✕</button>
+        </div>
+      </div>
+
+      <div class="chat__messages" id="messages"></div>
+
+      <div class="chat__suggestions" id="suggestions">
+        <button class="chip" data-suggest="I've had a throbbing headache and feel tired all day.">Headache &amp; fatigue</button>
+        <button class="chip" data-suggest="My facial skin is dry, red and flaky lately.">Dry, flaky skin</button>
+        <button class="chip" data-suggest="I have a runny nose, sneezing and itchy eyes.">Allergy symptoms</button>
+        <button class="chip" data-suggest="I keep getting acne breakouts on my forehead.">Acne breakouts</button>
+      </div>
+
+      <form class="chat__input" id="chatForm">
+        <button type="button" class="chat__mic" id="micBtn" aria-label="Speak your symptoms" title="Speak your symptoms">🎙️</button>
+        <input
+          id="chatInput"
+          type="text"
+          autocomplete="off"
+          placeholder="Describe your symptoms…"
+          aria-label="Describe your symptoms"
+        />
+        <button type="submit" class="chat__send" aria-label="Send">→</button>
+      </form>
+      <p class="chat__disclaimer">Remy gives general wellness guidance, not medical advice. For severe or persistent symptoms, see a professional.</p>
+    </div>
+  </div>
+
+  <script src="products.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
